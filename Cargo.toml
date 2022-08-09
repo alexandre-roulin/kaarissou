@@ -1,0 +1,20 @@
+[package]
+edition = "2021"
+name = "kaarissou"
+version = "0.1.0"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+toml = "0.5"
+serde = { version = "1.0", features = ["derive"] }
+async-trait = "0.1.57"
+
+[dependencies.tokio]
+features = ["fs", "rt", "macros", "rt-multi-thread", "sync"]
+version = "1.20"
+
+[dependencies.serenity]
+version = "0.11.5"
+default-features = false
+features = ["client", "gateway", "rustls_backend", "cache", "http", "model", "utils"]
