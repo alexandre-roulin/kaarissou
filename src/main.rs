@@ -1,8 +1,7 @@
 mod config;
 mod constant;
 
-use std::{collections::HashMap, sync::Arc};
-
+use crate::constant::SNAPCHAT_CHANNEL;
 use async_trait::async_trait;
 use config::Config;
 use constant::{KRYSSOU, LOG_CHANNEL, ROUND_TABLE_CHANNEL, SNAPCHAT_ROLE};
@@ -14,8 +13,7 @@ use serenity::{
     prelude::{Context, EventHandler, Mutex},
     Client,
 };
-
-use crate::constant::SNAPCHAT_CHANNEL;
+use std::{collections::HashMap, sync::Arc};
 
 #[derive(Default)]
 pub struct Handler(pub Arc<Mutex<Inner>>);
@@ -38,12 +36,9 @@ async fn remove_all_messages(ctx: &Context, uid: u64) -> bool {
         .filter(|msg| msg.author.id.0 == uid)
         .map(|msg| msg.id)
         .collect::<Vec<_>>();
-    if messages.is_empty() || messages.len() > 100 {
-        false
-    } else {
-        chid.delete_messages(ctx, messages).await
-        true
-    }
+    let retry = !(messages.is_empty() || messages.len() > 100);
+    let _ = chid.delete_messages(ctx, messages).await;
+    retry
 }
 
 #[async_trait]
