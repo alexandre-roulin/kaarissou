@@ -6,7 +6,7 @@ pub(crate) mod utils;
 use async_trait::async_trait;
 use config::Config;
 use constant::{KRYSSOU, KRYSTALINO_SERVER, PRIV_CHANNEL, SNAPCHAT_ROLE};
-use feature::{state::print_state, logger::log_voice_channel};
+use feature::{logger::log_voice_channel, state::print_state};
 use serenity::{
     model::{
         prelude::{GatewayIntents, GuildId, Ready},
@@ -32,21 +32,23 @@ impl EventHandler for Handler {
         print_state(&ctx).await;
     }
 
-    async fn voice_state_update(
-        &self,
-        ctx: Context,
-        _: Option<VoiceState>,
-        voice_state: VoiceState,
-    ) {
-        if voice_state.guild_id != Some(GuildId(KRYSTALINO_SERVER)) {
+    async fn voice_state_update(&self, ctx: Context, _: Option<VoiceState>, vs: VoiceState) {
+        if vs.guild_id != Some(GuildId(KRYSTALINO_SERVER)) {
             return;
         }
 
         let inner = &mut *self.0.lock().await;
         let map = &mut inner.users_channel;
-        let uid = voice_state.user_id.0;
-        let kryssou_chan = map.get(&KRYSSOU).cloned();
-        let cid = voice_state.channel_id.map(|c| c.0);
+        let uid = vs.user_id.0;
+        let kryssou_is_away = vs.user_id.0 == KRYSSOU && (vs.self_deaf || vs.self_mute);
+        // If Kryssou is mute or deaf, let's assume that he is not there.
+        let kryssou_chan = if kryssou_is_away {
+            None
+        } else {
+            map.get(&KRYSSOU).cloned()
+        };
+        
+        let cid = vs.channel_id.map(|c| c.0);
 
         // Update the map and log !
         if let Some(cid) = cid {
@@ -58,7 +60,7 @@ impl EventHandler for Handler {
             map.remove(&uid);
         };
 
-        let mut member = voice_state.member.unwrap();
+        let mut member = vs.member.unwrap();
 
         // Manage role for snapchat !
         if cid == Some(PRIV_CHANNEL) {
