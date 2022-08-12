@@ -2,7 +2,7 @@
 
 use std::process::Stdio;
 
-use serenity::{model::prelude::ChannelId, prelude::Context};
+use serenity::{ prelude::Context};
 use tokio::process::Command;
 
 use crate::{
@@ -69,5 +69,5 @@ pub async fn state() -> String {
 
 pub async fn print_state(ctx: &Context) {
     remove_all_messages(ctx, KAARISSOU, true).await;
-    let _ = ChannelId(SNAPCHAT_CHANNEL).say(ctx, state().await).await;
+    let _ = SNAPCHAT_CHANNEL.say(ctx, state().await).await;
 }

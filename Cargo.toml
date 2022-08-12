@@ -9,6 +9,7 @@ version = "0.1.0"
 toml = "0.5"
 serde = { version = "1.0", features = ["derive"] }
 async-trait = "0.1.57"
+songbird = "0.3.0"
 
 [dependencies.tokio]
 features = ["fs", "rt", "macros", "rt-multi-thread", "sync", "process"]
@@ -17,4 +18,4 @@ version = "1.20"
 [dependencies.serenity]
 version = "0.11.5"
 default-features = false
-features = ["client", "gateway", "rustls_backend", "cache", "http", "model", "utils"]
+features = ["client", "gateway", "rustls_backend", "cache", "http", "model", "utils", "voice"]

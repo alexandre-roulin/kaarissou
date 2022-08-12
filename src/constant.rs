@@ -1,14 +1,12 @@
-// UserId
-pub const KRYSSOU: u64 = 236591688137703424;
-pub const KAARISSOU: u64 = 835457730595651644;
+use serenity::model::prelude::{UserId, RoleId, ChannelId, GuildId};
 
-// TextChannelId
-pub const PRIV_CHANNEL: u64 = 973131463526584351;
-pub const LOG_CHANNEL: u64 = 907660058203156531;
-pub const SNAPCHAT_CHANNEL: u64 = 1006619508246577243;
+pub const KRYSSOU: UserId = UserId(236591688137703424);
+pub const KAARISSOU: UserId = UserId(835457730595651644);
 
-// RoleId
-pub const SNAPCHAT_ROLE: u64 = 974335161942569000;
+pub const PRIV_CHANNEL: ChannelId = ChannelId(973131463526584351);
+pub const LOG_CHANNEL: ChannelId = ChannelId(907660058203156531);
+pub const SNAPCHAT_CHANNEL: ChannelId = ChannelId(1006619508246577243);
 
-//GuildId
-pub const KRYSTALINO_SERVER: u64 = 360767176539373569;
+pub const SNAPCHAT_ROLE: RoleId = RoleId(974335161942569000);
+
+pub const KRYSTALINO_SERVER: GuildId = GuildId(360767176539373569);

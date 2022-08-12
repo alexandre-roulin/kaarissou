@@ -1,19 +1,29 @@
-use crate::constant::{KRYSSOU, LOG_CHANNEL};
+use crate::{
+    constant::{KRYSSOU, LOG_CHANNEL},
+    model::KaarissouUser,
+};
 use serenity::{
     model::prelude::{ChannelId, Mention, UserId},
     prelude::Context,
 };
 
-pub async fn log_voice_channel(ctx: &Context, uid: u64, cid: u64, kryssou_chan: Option<u64>) {
-    // User is not `KRYSSOU` and channel is not the same as Kryssou channel
-    if uid != KRYSSOU && kryssou_chan != Some(cid) {
-        let _ = ChannelId(LOG_CHANNEL)
+pub async fn log_voice_channel(
+    ctx: &Context,
+    uid: UserId,
+    cid: ChannelId,
+    kryssou_user: Option<&KaarissouUser>,
+) {
+
+    let kryssou_is_afk = kryssou_user.map(KaarissouUser::is_afk).unwrap_or(true);
+    // User is not `KRYSSOU` and channel is not the same as Kryssou channel or Kryssou is afk
+    if uid != KRYSSOU && (kryssou_user.map(|u| u.cid) != Some(cid) || kryssou_is_afk) {
+        let _ = LOG_CHANNEL
             .say(
                 &ctx,
                 format!(
                     "{} is connected to {}",
-                    Mention::from(UserId(uid)),
-                    Mention::from(ChannelId(cid))
+                    Mention::from(uid),
+                    Mention::from(cid)
                 ),
             )
             .await;
