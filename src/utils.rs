@@ -1,6 +1,5 @@
-use serenity::{model::prelude::UserId, prelude::Context};
-
 use crate::constant::SNAPCHAT_CHANNEL;
+use poise::serenity_prelude::{Context, UserId};
 
 pub async fn remove_all_messages(ctx: &Context, uid: UserId, old: bool) -> bool {
     let messages = SNAPCHAT_CHANNEL

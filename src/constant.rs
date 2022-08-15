@@ -1,7 +1,7 @@
-use serenity::model::prelude::{UserId, RoleId, ChannelId, GuildId};
+use poise::serenity_prelude::{ChannelId, GuildId, RoleId, UserId};
 
 pub const KRYSSOU: UserId = UserId(236591688137703424);
-pub const KAARISSOU: UserId = UserId(835457730595651644);
+// pub const KAARISSOU: UserId = UserId(835457730595651644);
 
 pub const PRIV_CHANNEL: ChannelId = ChannelId(973131463526584351);
 pub const LOG_CHANNEL: ChannelId = ChannelId(907660058203156531);
