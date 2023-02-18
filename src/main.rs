@@ -1,27 +1,31 @@
+#![feature(once_cell)]
+#![feature(drain_filter)]
+
 pub(crate) mod config;
 pub(crate) mod constant;
 mod error;
 mod framework;
 pub(crate) mod logger;
 mod model;
-pub(crate) mod utils;
+pub(crate) mod stalker;
 
 use async_trait::async_trait;
 use config::Config;
-use constant::{KRYSSOU, KRYSTALINO_SERVER, PRIV_CHANNEL, SNAPCHAT_ROLE};
+use constant::{KRYSSOU, KRYSTALINO_SERVER, PRIV_CHANNEL};
 use error::KaarissouError;
-use framework::{error_handler, register_application, status};
+use framework::*;
 use logger::log_voice_channel;
 use model::KaarissouUser;
-use poise::serenity_prelude::{self as serenity, GatewayIntents, Ready, VoiceState};
+use poise::serenity_prelude::{self as serenity, GatewayIntents, Http, Ready, VoiceState};
 use poise::serenity_prelude::{Mutex, UserId};
+use songbird::driver::DecodeMode;
 use songbird::{
-    events::context_data::SpeakingUpdateData, model::payload::Speaking, CoreEvent, Event,
-    EventContext, SerenityInit,
+    events::context_data::SpeakingUpdateData, model::payload::Speaking, Event, EventContext,
+    SerenityInit,
 };
+
 use std::{collections::HashMap, sync::Arc};
 use tokio::time::Instant;
-use utils::remove_all_messages;
 
 type Context<'a> = poise::Context<'a, Data, KaarissouError>;
 type Data = Handler;
@@ -32,6 +36,7 @@ pub struct Handler(pub Arc<Mutex<Inner>>);
 #[derive(Debug)]
 pub struct Inner {
     users_channel: HashMap<UserId, KaarissouUser>,
+    http: Option<Arc<Http>>,
 }
 
 #[async_trait]
@@ -57,11 +62,38 @@ impl songbird::EventHandler for Handler {
                     }
                 }
             }
-            _ => {}
+            EventContext::Track(_) => {
+                let http = inner.http.as_ref().unwrap().clone();
+                for uid in map
+                    .iter()
+                    .filter(|(_, v)| v.cid == PRIV_CHANNEL)
+                    .map(|(k, _)| k)
+                {
+                    KRYSTALINO_SERVER
+                        .move_member(&http, uid, PRIV_CHANNEL)
+                        .await
+                        .unwrap();
+                }
+            }
+            EventContext::VoicePacket(packet) => {
+                if let (Some(audio), Some(kuser)) = (
+                    packet.audio.as_ref(),
+                    map.values_mut()
+                        .find(|v| v.ssrc == Some(packet.packet.ssrc)),
+                ) {
+                    if let Some(recorder) = kuser.recorder.as_mut() {
+                        for b in audio {
+                            let _ = recorder.writer.write_sample(*b);
+                        }
+                    }
+                }
+            }
+            &_ => todo!(),
         }
         None
     }
 }
+
 async fn event_listener(
     ctx: &serenity::Context,
     event: &poise::Event<'_>,
@@ -81,14 +113,16 @@ async fn event_listener(
     Ok(())
 }
 
-async fn ready(data: Data, ctx: &serenity::Context, _: Ready) {
-    let manager = songbird::get(ctx).await.unwrap();
-    let (handler, result) = manager.join_gateway(KRYSTALINO_SERVER, PRIV_CHANNEL).await;
-    if result.is_ok() {
-        let mut handler = handler.lock().await;
-        handler.add_global_event(CoreEvent::SpeakingStateUpdate.into(), data.clone());
-        handler.add_global_event(CoreEvent::SpeakingUpdate.into(), data.clone());
-    }
+async fn ready(_: Data, _: &serenity::Context, _: Ready) {
+    // data.0.lock().await.http = Some(ctx.http.clone());
+    // let manager = songbird::get(ctx).await.unwrap();
+    // let (handler, result) = manager.join(KRYSTALINO_SERVER, PRIV_CHANNEL).await;
+    // if result.is_ok() {
+    //     let mut handler = handler.lock().await;
+    //     handler.add_global_event(CoreEvent::SpeakingStateUpdate.into(), data.clone());
+    //     handler.add_global_event(CoreEvent::SpeakingUpdate.into(), data.clone());
+    //     handler.add_global_event(CoreEvent::VoicePacket.into(), data.clone());
+    // }
 }
 
 async fn voice_state_update(
@@ -106,7 +140,7 @@ async fn voice_state_update(
     let uid = vs.user_id;
 
     // If Kryssou is mute or deaf, let's assume that he is not there.
-    let kryssou_user = map.get(&KRYSSOU);
+    let kryssou_user = map.get(&KRYSSOU).cloned();
 
     let is_away = vs.self_deaf || vs.self_mute;
     let member = vs.member.as_mut().unwrap();
@@ -116,15 +150,12 @@ async fn voice_state_update(
         // If the user is muted (true) or leave the discord (None).
         (false, None) | (true, None) | (true, Some(_)) => {
             map.remove(&uid);
-            let _ = member.remove_role(&ctx, SNAPCHAT_ROLE).await;
-            while remove_all_messages(ctx, uid, false).await {}
         }
         // User join a new voice channel and is not mute or deaf!
         (false, Some(cid)) => {
-            log_voice_channel(ctx, uid, cid, kryssou_user).await;
-            map.insert(uid, KaarissouUser::new(cid));
-            if cid == PRIV_CHANNEL {
-                let _ = member.add_role(ctx, SNAPCHAT_ROLE).await;
+            let first_entry = map.insert(uid, KaarissouUser::new(cid)).is_none();
+            if kryssou_user.map(|kuser| kuser.cid) != Some(cid) && first_entry {
+                log_voice_channel(ctx, uid, cid).await;
             }
         }
     }
@@ -143,14 +174,17 @@ async fn main() {
             Box::pin(async move {
                 Ok(Handler(Arc::new(Mutex::new(Inner {
                     users_channel: HashMap::new(),
+                    http: None,
                 }))))
             })
         })
         .options(poise::FrameworkOptions {
+            commands: vec![register_application(), status(), log(), hash(), stalker(), train()],
+            on_error: |err| Box::pin(error_handler(err)),
             listener: |ctx, event, framework, user_data| {
                 Box::pin(event_listener(ctx, event, framework, user_data))
             },
-            on_error: |err| Box::pin(error_handler(err)),
+            // This is also where commands go
             prefix_options: poise::PrefixFrameworkOptions {
                 prefix: Some("!".into()),
                 edit_tracker: Some(poise::EditTracker::for_timespan(
@@ -159,11 +193,13 @@ async fn main() {
                 case_insensitive_commands: true,
                 ..Default::default()
             },
-            // This is also where commands go
-            commands: vec![register_application(), status()],
             ..Default::default()
         })
-        .client_settings(|c| c.register_songbird())
+        .client_settings(|c| {
+            c.register_songbird_from_config(
+                songbird::Config::default().decode_mode(DecodeMode::Decode),
+            )
+        })
         .run()
         .await
         .expect("can't create framework");
